@@ -3,35 +3,60 @@
 
 #define MPU6050_ADDRESS 0xD0
 
+void MPU6050_WaitEvent(I2C_TypeDef* I2Cx, uint32_t I2C_EVENT){
+	uint32_t Timeout = 10000;
+	
+	while(I2C_CheckEvent(I2Cx, I2C_EVENT) != SUCCESS){
+		Timeout--;
+		if(Timeout == 0)
+			break;
+	}
+}
+
 //指定地址写
 void MPU6050_WriteReg(uint8_t RegAddress, uint8_t Data){
-//	MyI2C_Start();
-//	MyI2C_SendByte(MPU6050_ADDRESS);
-//	MyI2C_ReceiveAck();
-//	MyI2C_SendByte(RegAddress);
-//	MyI2C_ReceiveAck();
-//	MyI2C_SendByte(Data);
-//	MyI2C_ReceiveAck();
-//	MyI2C_Stop();
+	I2C_GenerateSTART(I2C2, ENABLE);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT);
+	
+	I2C_Send7bitAddress(I2C2, MPU6050_ADDRESS, I2C_Direction_Transmitter);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);//EV6事件
+	
+	I2C_SendData(I2C2, RegAddress);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_BYTE_TRANSMITTING);//EV8事件
+	
+	I2C_SendData(I2C2, Data);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_BYTE_TRANSMITTED);//EV8_2事件
+	
+	I2C_GenerateSTOP(I2C2, ENABLE);
 }
 
 //指定地址读
 uint8_t MPU6050_ReadReg(uint8_t RegAddress){
-//	uint8_t Data;
-//	
-//	MyI2C_Start();
-//	MyI2C_SendByte(MPU6050_ADDRESS);
-//	MyI2C_ReceiveAck();
-//	MyI2C_SendByte(RegAddress);
-//	MyI2C_ReceiveAck();
-//	
-//	MyI2C_Start();
-//	MyI2C_SendByte(MPU6050_ADDRESS | 0x01);//变为读
-//	MyI2C_ReceiveAck();
-//	Data = MyI2C_ReceiveByte();
-//	MyI2C_SendAck(1);
-//	MyI2C_Stop();
+	uint8_t Data;
+
+	I2C_GenerateSTART(I2C2, ENABLE);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT);//EV5事件
 	
+	I2C_Send7bitAddress(I2C2, MPU6050_ADDRESS, I2C_Direction_Transmitter);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);//EV6事件
+	
+	I2C_SendData(I2C2, RegAddress);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_BYTE_TRANSMITTED);//EV8_2事件
+	
+	I2C_GenerateSTART(I2C2, ENABLE);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT);//EV5事件
+
+	I2C_Send7bitAddress(I2C2, MPU6050_ADDRESS, I2C_Direction_Receiver);
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED);//EV6事件
+
+	I2C_AcknowledgeConfig(I2C2, DISABLE);	//EV6_1：清除响应并生成停止条件的产生位
+	I2C_GenerateSTOP(I2C2, ENABLE);			//接收后再停止就来不及了，会接收额外的字节
+	
+	MPU6050_WaitEvent(I2C2, I2C_EVENT_MASTER_BYTE_RECEIVED);//EV7事件
+	Data = I2C_ReceiveData(I2C2);
+	
+	I2C_AcknowledgeConfig(I2C2, ENABLE);//默认给从机应答，刚才临时不应答，现在恢复应答，方便读取后续多个字节
+
 	return Data;
 }
 
