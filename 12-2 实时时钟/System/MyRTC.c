@@ -2,6 +2,8 @@
 #include <time.h>
 
 uint16_t MyRTC_Time[] = {2023, 1, 1, 23, 59, 55};
+
+void MyRTC_SetTime(void);
 	
 void MyRTC_Init(void){
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, ENABLE);
@@ -9,20 +11,28 @@ void MyRTC_Init(void){
 	
 	PWR_BackupAccessCmd(ENABLE);
 	
-	RCC_LSEConfig(RCC_LSE_ON);//LSE的频率的32.768KHz
-	while(RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET);
+	if(BKP_ReadBackupRegister(BKP_DR1) != 0xA5A5){
+		RCC_LSEConfig(RCC_LSE_ON);//LSE的频率的32.768KHz
+		while(RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET);
+		
+		RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE);
+		RCC_RTCCLKCmd(ENABLE);
+		
+		RTC_WaitForSynchro();
+		RTC_WaitForLastTask();
+		
+		RTC_SetPrescaler(32768 - 1);
+		RTC_WaitForLastTask();
+		
+		MyRTC_SetTime();
+		
+		BKP_WriteBackupRegister(BKP_DR1, 0xA5A5);
+	}
+	else{
+		RTC_WaitForSynchro();
+		RTC_WaitForLastTask();
+	}
 	
-	RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE);
-	RCC_RTCCLKCmd(ENABLE);
-	
-	RTC_WaitForSynchro();
-	RTC_WaitForLastTask();
-	
-	RTC_SetPrescaler(32768 - 1);
-	RTC_WaitForLastTask();
-	
-	RTC_SetCounter(1672588795);
-	RTC_WaitForLastTask();
 }
 
 void MyRTC_SetTime(void){
@@ -36,7 +46,7 @@ void MyRTC_SetTime(void){
 	time_date.tm_min = MyRTC_Time[4];
 	time_date.tm_sec = MyRTC_Time[5];
 	
-	time_cnt = mktime(&time_date);
+	time_cnt = mktime(&time_date) - 8 * 60 * 60;
 	
 	RTC_SetCounter(time_cnt);
 	RTC_WaitForLastTask();
@@ -46,7 +56,7 @@ void MyRTC_ReadTime(void){
 	time_t time_cnt;
 	struct tm time_date;
 	
-	time_cnt = RTC_GetCounter();
+	time_cnt = RTC_GetCounter() + 8 * 60 * 60;
 	
 	time_date = *localtime(&time_cnt);
 	
